@@ -1,4 +1,4 @@
-from app.services.ollama_client import EMBED_MODEL_NAME, client
+from app.services.client import EMBED_MODEL_NAME, ollama_client as client
 
 async def embed_text(text: str) -> list[float]:
     """Embedd user query using nomic-embed-text via Ollama

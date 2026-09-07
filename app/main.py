@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from app.routers.documents import doc_router
 from app.routers.chat import agent_router
-from app.services.ollama_client import client, EMBED_MODEL_NAME, GENERATE_MODEL_NAME, OLLAMA_URL
+from app.services.client import ollama_client, EMBED_MODEL_NAME, GENERATE_MODEL_NAME, OLLAMA_URL
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +14,8 @@ async def pull_ollama_models():
     try:
         logger.info(f"Connecting to Ollama at: {OLLAMA_URL}")
         logger.info(f"Starting to pull Ollama models: {EMBED_MODEL_NAME}, {GENERATE_MODEL_NAME}")
-        await client.pull(EMBED_MODEL_NAME)
-        await client.pull(GENERATE_MODEL_NAME)
+        await ollama_client.pull(EMBED_MODEL_NAME)
+        await ollama_client.pull(GENERATE_MODEL_NAME)
         logger.info("Successfully pulled Ollama models.")
     except Exception as e:
         logger.error(f"Failed to pull Ollama models (URL: {OLLAMA_URL}): {e}. Application will continue starting, but Ollama might be unavailable.")
