@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
 from app.schemas import AgentQuery
-from app.services.agent.tools import run_agent_stream
+from app.services.agent.loop.run import run_agent_stream
 
 logger = logging.getLogger(__name__)
 
