@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+from enum import Enum
 import uuid
 from typing import Literal
 from datetime import datetime
@@ -47,3 +49,17 @@ class AgentQuery(QueryRequest):
 class AgentResponse(BaseModel):
     answer: str 
     thought_steps: list[ThoughtStep] = []
+
+class Node(str, Enum):
+    THINK   = "think"
+    EXECUTE = "execute"
+    END     = "end"
+
+@dataclass
+class AgentState():
+    question: str
+    messages: list[dict] = field(default_factory=list)
+    thought_steps: list[ThoughtStep] = field(default_factory=list)
+    last_turn_tokens: int = 0
+    loop_count: int = 0
+    final_response: str | None = None

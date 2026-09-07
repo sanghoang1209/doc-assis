@@ -5,16 +5,19 @@ from sqlalchemy import Integer, DateTime, Text, UUID, func, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 from pgvector.sqlalchemy import Vector
 
+
 class FileStatus(str, Enum):
-    PENDING   = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    """Status enum for tracking document processing pipeline."""
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 class Base(DeclarativeBase):
     pass
 
 class Document(Base):
+    """SQLAlchemy model representing an uploaded document and its processing metadata."""
     __tablename__ = "documents"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
