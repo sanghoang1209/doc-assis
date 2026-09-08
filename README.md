@@ -1,61 +1,63 @@
-# Document Q&A AI Agent
+# 🏢 Enterprise Knowledge Assistant
 
-Imagine you have a private library of documents and a blind librarian named **Agent**. The books are your uploaded text files, stored in a PostgreSQL database. The librarian cannot read the books directly, but is equipped with **Skills (Tools)**: they can search the catalog of files, perform semantic page-by-page index searches (RAG vector retrieval via Ollama), or read a short booklet in full.
+## 📖 The Story & Business Challenge
 
-When you ask a question, the librarian doesn't just guess. They reason step-by-step:
-> *"First, let me list the documents. Ah, the user is asking about hotel data. Let me search the hotel document for relevant paragraphs. I found 3 matching chunks. Now, based only on these paragraphs, here is the answer."*
+In almost every organization, vital knowledge is trapped inside hundreds of unorganized files — standard operating procedures (SOPs), project reports, market research, technical guides, and legal contracts.
 
-This repository is that librarian: a lightweight FastAPI service powered by a reasoning LLM Agent that dynamically queries and reads your local documents to answer questions with transparency (showing its thought traces) and trust (highlighting exact sources).
+This creates severe operational bottlenecks:
+* **Wasted Productivity:** Employees spend **up to 30% of their workday** searching for specific answers across scattered documents.
+* **Delayed Decision-Making:** Key stakeholders wait hours or days for team members to locate and verify historical records.
+* **Knowledge Silos:** Critical operational knowledge stays isolated with key individuals instead of being accessible across the organization.
 
----
-
-## The Agent's Skills
-
-* **Document Management:** Standard REST APIs (`POST /documents/`, `GET /documents/`, `DELETE /documents/`) to upload and index files.
-* **Conversational Agent (`POST /agent/query`):** A unified chat endpoint driven by the Agent's reasoning loop.
-  * **Real-time SSE Streaming:** Returns a `text/event-stream` using Server-Sent Events (SSE), allowing the client to consume token chunks and reasoning logs in real-time.
-  * **Short-Term Memory:** Accepts `chat_history` to maintain context across follow-up questions.
-  * **Scope Selection:** Pass `document_id` to focus the search on a specific file, or omit it for a global cross-document search.
-  * **Dynamic UI Progress Checklist:** A Devin-style dynamic checklist showing exactly what files are being scanned or read, powered by a pure CSS spinner.
-  * **Interactive Thought Logs:** A collapsible reasoning accordion that opens while the Agent is thinking and automatically collapses when the final answer starts typing out.
+**This project was created to solve that fundamental business problem.**
 
 ---
 
-## Stream Event Schema
+## 💡 The Solution: An Autonomous Knowledge Partner
 
-The stream emits standard SSE events in the following formats:
-- **`event: thought`**: Emitted at the end of each reasoning loop. The `data` payload is a JSON representation of `ThoughtStep` containing loop index, token usage, tool metadata, and arguments.
-- **`event: answer`**: Emitted chunk-by-chunk when generating the final text response. The `data` is a JSON object `{"text": "chunk"}`.
-- **`event: done`**: Emitted once execution is complete, providing a final status.
+Imagine having a dedicated, tireless **Knowledge Assistant** sitting next to your team:
+
+1. **Reasoning Before Answering:** When asked a question, the Assistant doesn't guess or hallucinate. It autonomously scans the document registry, selects relevant files, reads matching paragraphs, and synthesizes a clear, accurate answer based strictly on verified facts.
+2. **Total Transparency & Trust:** Every answer includes a step-by-step **Reasoning Trace**. You can see exactly which documents were scanned, which sections were read, and why the Assistant reached its conclusion.
+3. **Instant On-Demand Insights:** Empowers leadership and team members to extract actionable answers from internal documentation in seconds, not hours.
 
 ---
 
-## Quick Start
+## 🎯 Business Value
 
-### 1. Run the Database
-Launch the PostgreSQL database with `pgvector` extension:
+* ⚡ **Accelerate Operations:** Reduce information search time from hours to seconds.
+* 🛡️ **Zero Hallucination Risk:** Answers are grounded strictly in your organization's internal document context.
+* 🔍 **Auditable & Transparent:** Full visibility into the Assistant's reasoning steps and source citations.
+* 🔒 **Data Privacy First:** Keeps internal business knowledge private within your dedicated database environment.
+
+---
+
+## 🚀 Quick Start Guide
+
+### 1. Launch Database
+Start the local database service with vector capabilities:
 ```bash
 docker compose up -d db
 ```
 
-### 2. Configure Environment
-Create a `.env` file in the root directory:
+### 2. Set Up Environment Variables
+Create a `.env` file in the project root:
 ```env
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/docqa
 OLLAMA_BASE_URL=http://localhost:11434
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### 3. Run the Application
-Install dependencies and start the FastAPI server:
+### 3. Start the Application
+Install dependencies and run the server:
 ```bash
 uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-### 4. Open the Dashboard
-Access the premium conversational UI directly in your browser:
+### 4. Experience the Assistant
+Open your browser and navigate to:
 ```text
 http://localhost:8000/ui
 ```
-Drag-and-drop your `.txt` files in the sidebar and start chatting with the Agent!
+Upload your business documents (SOPs, guides, reports) and start asking questions!
