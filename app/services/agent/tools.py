@@ -63,9 +63,9 @@ TOOLS = [
         "function": {
             "name": "get_full_document",
             "description": (
-                "Retrieve the full content of a document. "
+                "Retrieve the full content of a document page by page. Use page parameter to navigate."
                 "Use this tool when you need to read the entire document text instead of "
-                "just searching for relevant chunks. Only use for short documents."
+                "just searching for relevant chunks."
             ),
             "parameters": {
                 "type": "object",
@@ -74,8 +74,13 @@ TOOLS = [
                         "type": "string",
                         "description": "The UUID of the document to retrieve the full content for.",
                     },
+                    "page": {
+                        "type": "integer", 
+                        "default": 1, 
+                        "description": "Page number to read (each page is ~4000 chars)"
+                    }
                 },
-                "required": ["document_id"],
+                "required": ["document_id", "page"],
             },
         },
     },
@@ -158,7 +163,11 @@ async def execute_tool(
         return "\n".join(lines)
  
     elif tool_name == "get_full_document":
+        PAGE_SIZE = 5000
         document_id_str = tool_input["document_id"]
+        page = tool_input.get("page", 1)
+        start = (page - 1) * PAGE_SIZE
+        end = start + PAGE_SIZE
  
         try:
             doc_uuid = uuid.UUID(document_id_str)
@@ -169,12 +178,15 @@ async def execute_tool(
         if not doc:
             return f"Error: Document with ID '{document_id_str}' not found."
  
-        content = doc.content
-        # Limit to avoid context window overflow
-        if len(content) > 5_000:
-            content = content[:5_000] + "\n\n[... content truncated due to length ...]"
+        content_chunk = doc.content[start:end]
+        total_pages = (len(doc.content) + PAGE_SIZE - 1) // PAGE_SIZE
  
-        return f"Full content of '{doc.filename}':\n\n{content}"
+        return (
+            f"=== Document '{doc.filename}' (Page {page}/{total_pages}) ===\n\n"
+            f"{content_chunk}\n\n"
+            f"[System Note: Page {page} of {total_pages}. "
+            f"{'Call get_full_document with page=' + str(page+1) + ' to read more.' if page < total_pages else 'End of document.'}]"
+        )
  
     else:
         return f"Error: Tool '{tool_name}' is not recognized."
