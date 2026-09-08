@@ -1,11 +1,17 @@
 import json
+from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.client import groq_client
 from app.services.agent.tools import TOOLS, execute_tool
-from app.schemas import AgentState, Node, ThoughtStep, ToolCallDetail
+from app.schemas import (
+    AgentState, 
+    Node, 
+    NodeTransition, 
+    ThoughtStep, 
+    ToolCallDetail
+)
 
-
-async def think_node(state: AgentState) -> tuple[AgentState, Node]:
+async def think_node(state: AgentState) -> AsyncGenerator[str | NodeTransition, None, None]:
     """Execute LLM reasoning turn to determine whether to call tools or finish answering.
 
     Args:
@@ -14,48 +20,122 @@ async def think_node(state: AgentState) -> tuple[AgentState, Node]:
     Returns:
         tuple[AgentState, Node]: Updated agent state and next graph node (EXECUTE or END).
     """
+    accumulated_tc: dict = {}
+    accumulated_content: str = ""
+    role: str = "assistant"
+    calling_tools: bool = False
+    turn_tokens: int = 0
     try:
         response = await groq_client.chat.completions.create(
             model="qwen/qwen3.6-27b",
             messages=state.messages,
             tools=TOOLS,
+            stream=True
         )
     except Exception as e:
         raise RuntimeError(f"Generate failed: {e}")
 
-    message = response.choices[0].message
-    turn_tokens = response.usage.total_tokens
+    async for chunk in response:
+        delta = chunk.choices[0].delta
+
+        if getattr(delta, "role", None) is not None:
+            role = delta.role
+
+        if getattr(chunk, "usage", None) is not None:
+            turn_tokens = chunk.usage.total_tokens
+
+        if getattr(delta, "content", None) is not None:
+            piece_content = delta.content
+            accumulated_content += piece_content
+
+            yield f"event: answer\ndata: {json.dumps({"text": piece_content})}\n\n"
+
+        if getattr(delta, "tool_calls", None) is not None:
+            calling_tools = True
+            for tc in delta.tool_calls:
+                index = tc.index
+
+                if index not in accumulated_tc:
+                    accumulated_tc[index] = {
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": ""
+                    }
+
+                if tc.function.arguments:
+                    accumulated_tc[index]["arguments"] += tc.function.arguments
+
     new_state = AgentState(
         question=state.question,
-        messages=state.messages + [message],
+        messages=state.messages,
         thought_steps=state.thought_steps,
         last_turn_tokens=turn_tokens,
         loop_count=state.loop_count + 1,
         final_response=state.final_response
     )
 
-    if message.tool_calls:
-        return new_state, Node.EXECUTE
+    if not calling_tools:
+        message = {
+            "role": role,
+            "content": accumulated_content
+        }
 
-    final_step = ThoughtStep(
-        loop_index=new_state.loop_count - 1,
-        token=turn_tokens,
-        thought=message.content,
-        tool_calls=[]
-    )
+        final_step = ThoughtStep(
+            loop_index=new_state.loop_count - 1,
+            token=turn_tokens,
+            thought=accumulated_content,
+            tool_calls=[]
+        )
 
-    final_state = AgentState(
-        question=new_state.question,
-        messages=new_state.messages,
-        thought_steps=new_state.thought_steps + [final_step],
-        last_turn_tokens=new_state.last_turn_tokens,
-        loop_count=new_state.loop_count,
-        final_response=message.content or "",
-    )
-    return final_state, Node.END
+        final_state = AgentState(
+            question=new_state.question,
+            messages=new_state.messages + [message],
+            thought_steps=new_state.thought_steps + [final_step],
+            last_turn_tokens=new_state.last_turn_tokens,
+            loop_count=new_state.loop_count,
+            final_response=accumulated_content or "",
+        )
+
+        yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
+        yield NodeTransition(state=final_state, next_node=Node.END)
+        return
+
+    final_tool_calls = []
+    tool_calls_payload = []
+    for idx, tc in accumulated_tc.items():
+        try:
+            parsed_args = json.loads(tc["arguments"]) if tc["arguments"] else {}
+        except json.JSONDecodeError:
+            parsed_args = {}
+
+        final_tool_calls.append({
+            "id": tc["id"],
+            "name": tc["name"],
+            "arguments": parsed_args
+        })
+
+        tool_calls_payload.append({
+            "id": tc["id"],
+            "type": "function",
+            "function": {
+                "name": tc["name"],
+                "arguments": tc["arguments"]
+            }
+        })
+
+    message = {
+        "role": role,
+        "content": accumulated_content,
+        "tool_calls": tool_calls_payload
+    }
+
+    new_state.messages = new_state.messages + [message]
+
+    yield NodeTransition(state=new_state, next_node=Node.EXECUTE)
+    return
 
 
-async def execute_node(state: AgentState, db: AsyncSession) -> tuple[AgentState, Node]:
+async def execute_node(state: AgentState, db: AsyncSession) -> AsyncGenerator[str | NodeTransition, None, None]:
     """Execute requested tool calls from the last thought turn and record thought steps.
 
     Args:
@@ -115,4 +195,6 @@ async def execute_node(state: AgentState, db: AsyncSession) -> tuple[AgentState,
         final_response=None
     )
 
-    return new_state, Node.THINK
+    yield f"event: thought\ndata: {new_thought_step.model_dump_json()}\n\n"
+    yield NodeTransition(state=new_state, next_node=Node.THINK)
+    return

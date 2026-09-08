@@ -63,3 +63,8 @@ class AgentState():
     last_turn_tokens: int = 0
     loop_count: int = 0
     final_response: str | None = None
+
+@dataclass
+class NodeTransition:
+    state: AgentState
+    next_node: Node

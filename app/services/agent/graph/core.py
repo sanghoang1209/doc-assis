@@ -1,11 +1,12 @@
 import uuid
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.agent.graph.nodes import execute_node, think_node
 from app.schemas import (
     AgentState,
     ChatMessage, 
-    AgentResponse,
     Node, 
+    NodeTransition
 )
 
 class AgentGraph:
@@ -25,7 +26,7 @@ class AgentGraph:
         chat_history: list[ChatMessage] | None,
         document_id: uuid.UUID | None,
         db: AsyncSession,
-    ) -> AgentResponse:
+    ):
         """Execute the agent graph state machine asynchronously.
 
         Args:
@@ -52,21 +53,25 @@ class AgentGraph:
 
         while current_node != Node.END:
             if state.loop_count >= self.max_loops:
-                return AgentResponse(
-                    answer=f"Reached max loops ({self.max_loops}) without answer.",
-                    thought_steps=state.thought_steps
-                )
+                yield f"event: error\ndata: {json.dumps({'detail': f'Reached maximum tool loops ({self.max_loops}) without answer.'})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'max_loops_exceeded'})}\n\n"
+                return
 
             if current_node == Node.THINK:
-                state, current_node = await think_node(state)
+                async for item in think_node(state):
+                    if isinstance(item, str):
+                        yield item
+                    elif isinstance(item, NodeTransition):
+                        state, current_node = item.state, item.next_node
 
             elif current_node == Node.EXECUTE:
-                state, current_node = await execute_node(state, db)
+                async for item in execute_node(state, db):
+                    if isinstance(item, str):
+                        yield item
+                    elif isinstance(item, NodeTransition):
+                        state, current_node = item.state, item.next_node
 
-        return AgentResponse(
-            answer=state.final_response or "",
-            thought_steps=state.thought_steps
-        )
+        return
 
     def _build_init_message(
         self,
@@ -116,16 +121,14 @@ async def main():
     
     graph = AgentGraph()
     async with SessionLocal() as session:
-        response = await graph.run(
-            question="What is in db, summarize all of it",
+        async for chunk in graph.run(
+            question="What documents are available?",
             chat_history=None,
             document_id=None,
             db=session
-        )
-
-        return response.answer
+        ):
+            print(chunk, end="", flush=True)
 
 if __name__ == "__main__":
     import asyncio
-    answer = asyncio.run(main())
-    print(answer)
+    asyncio.run(main())
