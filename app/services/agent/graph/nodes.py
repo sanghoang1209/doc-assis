@@ -1,7 +1,7 @@
 import json
 from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.client import groq_client
+from app.services.client import GROQ_MODEL, groq_client
 from app.services.agent.tools import TOOLS, execute_tool
 from app.schemas import (
     AgentState, 
@@ -27,7 +27,7 @@ async def think_node(state: AgentState) -> AsyncGenerator[str | NodeTransition, 
     turn_tokens: int = 0
     try:
         response = await groq_client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
+            model=GROQ_MODEL,
             messages=state.messages,
             tools=TOOLS,
             stream=True

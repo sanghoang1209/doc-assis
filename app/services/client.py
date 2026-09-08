@@ -5,10 +5,11 @@ from ollama import AsyncClient
 
 load_dotenv()
 
-EMBED_MODEL_NAME = "nomic-embed-text"
-GENERATE_MODEL_NAME = "qwen2.5:1.5b"
+EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
+GENERATE_MODEL_NAME = os.getenv("GENERATE_MODEL_NAME", "qwen2.5:1.5b")
 
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
 
 ollama_client = AsyncClient(host=OLLAMA_URL)
 groq_api_key = os.getenv("GROQ_API_KEY") or "gsk_placeholder"
