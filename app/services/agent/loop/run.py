@@ -277,3 +277,6 @@ async def run_agent_stream(
         yield f"event: thought\ndata: {thought_step.model_dump_json()}\n\n"
 
         loops += 1
+        
+    yield f"event: error\ndata: {json.dumps({'detail': f'Reached maximum tool loops ({max_loops}) without answer.'})}\n\n"
+    yield f"event: done\ndata: {json.dumps({'status': 'max_loops_exceeded'})}\n\n"
