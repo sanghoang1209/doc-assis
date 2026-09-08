@@ -2,7 +2,7 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.client import groq_client
 from app.services.agent.tools import TOOLS, execute_tool
-from app.schemas import AgentState, ChatMessage, Node, ThoughtStep, ToolCallDetail
+from app.schemas import AgentState, Node, ThoughtStep, ToolCallDetail
 
 
 async def think_node(state: AgentState) -> tuple[AgentState, Node]:

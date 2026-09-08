@@ -110,3 +110,22 @@ class AgentGraph:
         messages.append({"role": "user", "content": question})
 
         return messages
+
+async def main():
+    from app.database import SessionLocal
+    
+    graph = AgentGraph()
+    async with SessionLocal() as session:
+        response = await graph.run(
+            question="What is in db, summarize all of it",
+            chat_history=None,
+            document_id=None,
+            db=session
+        )
+
+        return response.answer
+
+if __name__ == "__main__":
+    import asyncio
+    answer = asyncio.run(main())
+    print(answer)
