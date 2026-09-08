@@ -727,6 +727,13 @@ select:hover {
     gap: 0.4rem;
 }
 
+.agent-activity-checklist:empty {
+    display: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
 .agent-activity-item {
     display: flex;
     align-items: center;

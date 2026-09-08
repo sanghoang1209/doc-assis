@@ -58,7 +58,10 @@ async function fetchDocuments(showError = true) {
 
 // Auto-poll document list when any document is processing or pending
 function checkAndStartPolling() {
-    const hasUnfinished = documentList.some(doc => doc.status === 'processing' || doc.status === 'pending');
+    const hasUnfinished = documentList.some(doc => {
+        const s = (doc.status || '').toLowerCase();
+        return s === 'processing' || s === 'pending';
+    });
     if (hasUnfinished) {
         if (!pollInterval) {
             pollInterval = setInterval(() => fetchDocuments(false), 3000);
@@ -93,19 +96,20 @@ function renderDocuments() {
 
         const dateStr = new Date(doc.created_at).toLocaleString();
 
-        const statusClass = doc.status || 'completed';
-        let statusLabel = statusClass;
+        const rawStatus = (doc.status || 'completed').toLowerCase();
+        const statusClass = rawStatus;
+        let statusLabel = rawStatus;
         let statusIcon = '';
-        if (statusClass === 'completed') {
+        if (rawStatus === 'completed') {
             statusLabel = 'Ready';
             statusIcon = '<span style="width: 6px; height: 6px; border-radius: 50%; background-color: var(--accent-emerald);"></span>';
-        } else if (statusClass === 'processing') {
+        } else if (rawStatus === 'processing') {
             statusLabel = 'Processing';
             statusIcon = '<div class="agent-spinner" style="width: 8px; height: 8px; border-width: 1px;"></div>';
-        } else if (statusClass === 'pending') {
+        } else if (rawStatus === 'pending') {
             statusLabel = 'Pending';
             statusIcon = '<span style="width: 6px; height: 6px; border-radius: 50%; background-color: var(--accent-amber);"></span>';
-        } else if (statusClass === 'failed') {
+        } else if (rawStatus === 'failed') {
             statusLabel = 'Failed';
             statusIcon = '<span style="color: var(--accent-rose); font-weight: bold;">✕</span>';
         }
@@ -140,7 +144,7 @@ function renderDocuments() {
 // Select a document from sidebar
 function selectDocument(docId) {
     const doc = documentList.find(d => d.id === docId);
-    if (doc && doc.status && doc.status !== 'completed') {
+    if (doc && doc.status && doc.status.toLowerCase() !== 'completed') {
         showToast(`Document status is '${doc.status}'. Only completed documents can be queried.`, "error");
         return;
     }
@@ -161,9 +165,10 @@ function updateDocumentDropdown() {
     documentList.forEach(doc => {
         const option = document.createElement('option');
         option.value = doc.id;
-        const statusText = doc.status && doc.status !== 'completed' ? ` [${doc.status.toUpperCase()}]` : '';
+        const isNotCompleted = doc.status && doc.status.toLowerCase() !== 'completed';
+        const statusText = isNotCompleted ? ` [${doc.status.toUpperCase()}]` : '';
         option.textContent = `📄 ${doc.filename}${statusText}`;
-        if (doc.status && doc.status !== 'completed') {
+        if (isNotCompleted) {
             option.disabled = true;
         }
         docSelect.appendChild(option);
@@ -174,7 +179,7 @@ function updateDocumentDropdown() {
 // Dropdown Change Handler
 docSelect.onchange = (e) => {
     const doc = documentList.find(d => d.id === e.target.value);
-    if (doc && doc.status && doc.status !== 'completed') {
+    if (doc && doc.status && doc.status.toLowerCase() !== 'completed') {
         showToast(`Document status is '${doc.status}'. Only completed documents can be queried.`, "error");
         docSelect.value = selectedDocumentId;
         return;
@@ -397,7 +402,7 @@ async function submitQuestion() {
     }
 }
 
-// Create an empty assistant message bubble with a dynamic progress checklist
+// Create an empty assistant message bubble
 function appendEmptyAssistantBubble() {
     const id = `msg-${Math.random().toString(36).substr(2, 9)}`;
     const messageContainer = document.createElement('div');
@@ -408,12 +413,6 @@ function appendEmptyAssistantBubble() {
 
     messageContainer.innerHTML = `
         <div class="message-bubble markdown-body" id="${id}-bubble">
-            <div class="agent-activity-checklist" id="${id}-checklist">
-                <div class="agent-activity-item active" id="${id}-active-item">
-                    <span class="agent-activity-icon"><div class="agent-spinner"></div></span>
-                    <span class="agent-activity-text">Agent is starting reasoning...</span>
-                </div>
-            </div>
             <!-- Container for streaming final answer -->
             <div class="agent-text-answer" id="${id}-answer"></div>
         </div>
@@ -429,9 +428,14 @@ function updateAssistantTextContent(id, text) {
     const bubble = document.getElementById(`${id}-bubble`);
     if (!bubble) return;
 
-    // Remove the active loading item from the checklist
+    // Remove the active loading item from the checklist if present
     const activeItem = document.getElementById(`${id}-active-item`);
     if (activeItem) activeItem.remove();
+
+    const checklist = document.getElementById(`${id}-checklist`);
+    if (checklist && checklist.children.length === 0) {
+        checklist.remove();
+    }
 
     const parsedText = window.marked ? window.marked.parse(text) : escapeHtml(text);
     
@@ -443,7 +447,6 @@ function updateAssistantTextContent(id, text) {
         textContainer.id = `${id}-answer`;
         
         // Insert it after checklist but before accordion
-        const checklist = document.getElementById(`${id}-checklist`);
         const accordion = bubble.querySelector('.thought-accordion');
         if (accordion) {
             bubble.insertBefore(textContainer, accordion);
@@ -461,43 +464,48 @@ function updateAssistantThoughtTrace(id, steps, forceOpen = false) {
     const bubble = document.getElementById(`${id}-bubble`);
     if (!bubble) return;
 
-    // 1. Re-render the activity checklist!
-    const checklistEl = document.getElementById(`${id}-checklist`);
-    if (checklistEl) {
-        let checklistHtml = "";
-        
-        steps.forEach((step) => {
-            let taskDescription = `Step ${step.loop_index + 1}: Thought process completed`;
-            if (step.tool_calls && step.tool_calls.length > 0) {
-                const toolName = step.tool_calls[0].name;
-                if (toolName === "search_document") {
-                    taskDescription = `Step ${step.loop_index + 1}: Searched database for relevant chunks`;
-                } else if (toolName === "list_documents") {
-                    taskDescription = `Step ${step.loop_index + 1}: Scanned knowledge base document list`;
-                } else if (toolName === "get_full_document") {
-                    taskDescription = `Step ${step.loop_index + 1}: Read full content of the document`;
-                }
-            }
-            
-            checklistHtml += `
-                <div class="agent-activity-item completed">
-                    <span class="agent-activity-icon check">✓</span>
-                    <span class="agent-activity-text">${taskDescription}</span>
-                </div>
-            `;
-        });
+    // 1. Re-render or create the activity checklist dynamically!
+    let checklistEl = document.getElementById(`${id}-checklist`);
+    if (!checklistEl) {
+        checklistEl = document.createElement('div');
+        checklistEl.className = 'agent-activity-checklist';
+        checklistEl.id = `${id}-checklist`;
+        bubble.insertBefore(checklistEl, bubble.firstChild);
+    }
 
-        // Append the next active step prediction
-        const nextStepNum = steps.length + 1;
+    let checklistHtml = "";
+    
+    steps.forEach((step) => {
+        let taskDescription = `Step ${step.loop_index + 1}: Thought process completed`;
+        if (step.tool_calls && step.tool_calls.length > 0) {
+            const toolName = step.tool_calls[0].name;
+            if (toolName === "search_document") {
+                taskDescription = `Step ${step.loop_index + 1}: Searched database for relevant chunks`;
+            } else if (toolName === "list_documents") {
+                taskDescription = `Step ${step.loop_index + 1}: Scanned knowledge base document list`;
+            } else if (toolName === "get_full_document") {
+                taskDescription = `Step ${step.loop_index + 1}: Read full content of the document`;
+            }
+        }
+        
         checklistHtml += `
-            <div class="agent-activity-item active" id="${id}-active-item">
-                <span class="agent-activity-icon"><div class="agent-spinner"></div></span>
-                <span class="agent-activity-text">Step ${nextStepNum}: Processing next loop step...</span>
+            <div class="agent-activity-item completed">
+                <span class="agent-activity-icon check">✓</span>
+                <span class="agent-activity-text">${taskDescription}</span>
             </div>
         `;
-        
-        checklistEl.innerHTML = checklistHtml;
-    }
+    });
+
+    // Append the next active step prediction
+    const nextStepNum = steps.length + 1;
+    checklistHtml += `
+        <div class="agent-activity-item active" id="${id}-active-item">
+            <span class="agent-activity-icon"><div class="agent-spinner"></div></span>
+            <span class="agent-activity-text">Step ${nextStepNum}: Processing next loop step...</span>
+        </div>
+    `;
+    
+    checklistEl.innerHTML = checklistHtml;
 
     // Remove existing accordion if any
     const oldAccordion = bubble.querySelector('.thought-accordion');
@@ -549,6 +557,11 @@ function removeStreamingCursor(id) {
 
     const activeItem = document.getElementById(`${id}-active-item`);
     if (activeItem) activeItem.remove();
+
+    const checklist = document.getElementById(`${id}-checklist`);
+    if (checklist && checklist.children.length === 0) {
+        checklist.remove();
+    }
 }
 
 // Append bubble to chat console
