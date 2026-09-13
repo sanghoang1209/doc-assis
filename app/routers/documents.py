@@ -1,11 +1,14 @@
+import io
 import uuid
 import logging
+import pdfplumber
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, BackgroundTasks
-from app.services.rag.chunker import chunk_by_sentences
 from app.services.rag.embedder import embed_text
 from app.models import Document, Chunk, FileStatus
+from app.services.rag.chunker import chunk_by_sentences
+from app.services.extractor import extract_text_from_pdf
 from app.database import get_db, SessionLocal, update_doc_status
 from app.services.rag.generator import generate, OllamaConnectionError, OllamaModelNotFound
 from app.schemas import DocumentUploadResponse, DocumentListItem, QueryRequest, QueryResponse
@@ -17,7 +20,8 @@ CONTENT_TYPES = [
     "text/xml",
     "text/plain",
     "text/markdown",
-    "application/json"
+    "application/json",
+    "application/pdf"
 ]
 
 logger = logging.getLogger(__name__)
@@ -65,11 +69,19 @@ async def upload_document(
             detail=f"Format as {file.content_type} is not supported"
         )
     
-    try:
-        content = await file.read()
-        text = content.decode("utf-8")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to read file")
+    content = await file.read()
+    if file.content_type == "application/pdf":
+        try:
+            text = extract_text_from_pdf(content)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    else:
+        try:
+            text = content.decode("utf-8")
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="The text file is empty.")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="The text file must be in UTF-8 encoding format.")
 
     try:
         doc = Document(filename=file.filename, content=text)
