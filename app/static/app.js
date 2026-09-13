@@ -405,7 +405,7 @@ uploadDropzone.ondrop = (e) => {
 async function handleFileUpload(file) {
     if (!file) return;
     
-    const ALLOWED_EXTENSIONS = ['.txt', '.md', '.html', '.css', '.csv', '.xml', '.json'];
+    const ALLOWED_EXTENSIONS = ['.pdf', '.txt', '.md', '.html', '.css', '.csv', '.xml', '.json'];
     const extension = '.' + file.name.split('.').pop().toLowerCase();
     
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
