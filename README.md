@@ -1,63 +1,72 @@
-# 🏢 Enterprise Knowledge Assistant
+# Doc Assistant
 
-## 📖 The Story & Business Challenge
-
-In almost every organization, vital knowledge is trapped inside hundreds of unorganized files — standard operating procedures (SOPs), project reports, market research, technical guides, and legal contracts.
-
-This creates severe operational bottlenecks:
-* **Wasted Productivity:** Employees spend **up to 30% of their workday** searching for specific answers across scattered documents.
-* **Delayed Decision-Making:** Key stakeholders wait hours or days for team members to locate and verify historical records.
-* **Knowledge Silos:** Critical operational knowledge stays isolated with key individuals instead of being accessible across the organization.
-
-**This project was created to solve that fundamental business problem.**
+An autonomous document Q&A assistant featuring RAG retrieval, agentic reasoning traces, and session-based short-term memory.
 
 ---
 
-## 💡 The Solution: An Autonomous Knowledge Partner
+## Usage Guide
 
-Imagine having a dedicated, tireless **Knowledge Assistant** sitting next to your team:
+### 1. Setup and Installation
 
-1. **Reasoning Before Answering:** When asked a question, the Assistant doesn't guess or hallucinate. It autonomously scans the document registry, selects relevant files, reads matching paragraphs, and synthesizes a clear, accurate answer based strictly on verified facts.
-2. **Total Transparency & Trust:** Every answer includes a step-by-step **Reasoning Trace**. You can see exactly which documents were scanned, which sections were read, and why the Assistant reached its conclusion.
-3. **Instant On-Demand Insights:** Empowers leadership and team members to extract actionable answers from internal documentation in seconds, not hours.
-
----
-
-## 🎯 Business Value
-
-* ⚡ **Accelerate Operations:** Reduce information search time from hours to seconds.
-* 🛡️ **Zero Hallucination Risk:** Answers are grounded strictly in your organization's internal document context.
-* 🔍 **Auditable & Transparent:** Full visibility into the Assistant's reasoning steps and source citations.
-* 🔒 **Data Privacy First:** Keeps internal business knowledge private within your dedicated database environment.
-
----
-
-## 🚀 Quick Start Guide
-
-### 1. Launch Database
-Start the local database service with vector capabilities:
+#### Step 1: Start Database
+Start PostgreSQL with vector extension enabled:
 ```bash
 docker compose up -d db
 ```
 
-### 2. Set Up Environment Variables
-Create a `.env` file in the project root:
+#### Step 2: Environment Configuration
+Create a `.env` file in the root directory:
 ```env
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/docqa
 OLLAMA_BASE_URL=http://localhost:11434
 GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
+EMBED_MODEL_NAME=nomic-embed-text
+GENERATE_MODEL_NAME=qwen2.5:1.5b
 ```
 
-### 3. Start the Application
-Install dependencies and run the server:
+#### Step 3: Run the Application
+Install dependencies and start the backend server:
 ```bash
 uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-### 4. Experience the Assistant
+#### Step 4: Access Web Interface
 Open your browser and navigate to:
 ```text
 http://localhost:8000/ui
 ```
-Upload your business documents (SOPs, guides, reports) and start asking questions!
+
+---
+
+### 2. Dashboard Operations
+
+#### Chat Sessions
+- Create new session: Click the "+ New" button on the left sidebar.
+- Auto-titling: Sessions are automatically named based on your first query.
+- Rename session: Click the edit icon next to a session in the sidebar to rename it.
+- Delete session: Click the trash icon to remove a conversation session and its history.
+
+#### Document Upload
+- Drag and drop files or click the upload area in the sidebar.
+- Supported formats: `.pdf`, `.txt`, `.md`, `.html`, `.css`, `.csv`, `.xml`, `.json`.
+- Status indicators show processing state: `Ready`, `Processing`, or `Failed`.
+
+#### Querying & Agent Reasoning
+- Scope Selection: Select "Search All Documents" or restrict queries to a specific document.
+- Thought Traces: Click "View Agent Reasoning" under responses to inspect step-by-step reasoning logs, skill execution, and token usage.
+
+---
+
+## Features and Roadmap
+
+### Current Capabilities
+- Instant Knowledge Retrieval: Search and extract verified answers across internal company documentation (SOPs, guides, reports, and contracts).
+- Transparent Reasoning Traces: Provide step-by-step auditability into how answers are derived, ensuring verified and trustworthy responses.
+- Interactive Conversation Management: Support multi-turn chat sessions with automatic topic titling and persistent conversation history.
+- Real-Time Information Delivery: Receive immediate, continuous answer streaming as insights are synthesized from documentation.
+
+### Future Business Capabilities
+- Multi-Document Comparison & Cross-Analysis: Analyze and compare multiple files (e.g., contract revisions or policy updates) to automatically identify core differences.
+- Structured Data Extraction & Summary Reporting: Reroute key metadata fields (such as contract expiration dates or financial terms) into exportable summary reports for managers.
