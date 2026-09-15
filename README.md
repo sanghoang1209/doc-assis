@@ -1,6 +1,17 @@
 # Doc Assistant
 
-An autonomous document Q&A assistant featuring RAG retrieval, agentic reasoning traces, and session-based short-term memory.
+Upload your documents. Ask anything. See exactly how answers are derived.
+
+Most AI chat tools are black boxes — you get an answer but can't verify where it came from. Doc Assistant shows you every reasoning step, every source chunk, so you can trust what you're reading.
+
+---
+
+## Demo
+
+![Doc Assistant Interface](attach/demo_1.png)
+
+*Transparent agent reasoning traces & skill invocation logs:*
+![Agent Reasoning Traces](attach/demo_2.png)
 
 ---
 
@@ -59,14 +70,19 @@ http://localhost:8000/ui
 
 ---
 
-## Features and Roadmap
+## Key Features
 
-### Current Capabilities
-- Instant Knowledge Retrieval: Search and extract verified answers across internal company documentation (SOPs, guides, reports, and contracts).
-- Transparent Reasoning Traces: Provide step-by-step auditability into how answers are derived, ensuring verified and trustworthy responses.
-- Interactive Conversation Management: Support multi-turn chat sessions with automatic topic titling and persistent conversation history.
-- Real-Time Information Delivery: Receive immediate, continuous answer streaming as insights are synthesized from documentation.
+- **Instant Knowledge Retrieval:** Search and extract verified answers across internal documentation (SOPs, guides, reports, and contracts).
+- **Transparent Reasoning Traces:** Provide step-by-step auditability into how answers are derived, ensuring verified and trustworthy responses.
+- **Interactive Conversation Management:** Support multi-turn chat sessions with automatic topic titling and persistent conversation history.
+- **Real-Time Streaming:** Receive immediate answer streaming as insights are synthesized from documentation.
 
-### Future Business Capabilities
-- Multi-Document Comparison & Cross-Analysis: Analyze and compare multiple files (e.g., contract revisions or policy updates) to automatically identify core differences.
-- Structured Data Extraction & Summary Reporting: Reroute key metadata fields (such as contract expiration dates or financial terms) into exportable summary reports for managers.
+---
+
+## Roadmap
+
+- [ ] Multi-document comparison & diff visualization
+- [ ] Structured data extraction to exportable reports
+- [ ] PDF scan support via OCR
+
+Have a use case in mind? Open an issue — I'm actively looking for real-world problems to solve with this tool.
