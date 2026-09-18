@@ -14,7 +14,7 @@ async def retrieve_vec(question: str, document_id: uuid.UUID | None, top_k: int,
         db (AsyncSession): database session
 
     """
-    embed_vec = await embed_text(question)
+    embed_vec = (await embed_text([question]))[0]
     selected_obj = select(Chunk)
     if document_id:
         selected_obj = selected_obj.where(Chunk.document_id == document_id)

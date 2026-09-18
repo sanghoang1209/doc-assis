@@ -1,6 +1,9 @@
+import asyncio
 from app.services.client import EMBED_MODEL_NAME, ollama_client as client
 
-async def embed_text(text: str) -> list[float]:
+# add retry logic when ollama fail
+# batch embedding
+async def embed_text(texts: list[str]) -> list[list[float]]:
     """Embedd user query using nomic-embed-text via Ollama
 
     Args:
@@ -13,9 +16,19 @@ async def embed_text(text: str) -> list[float]:
         list[float]: text input represented in vector
     """
     try:
-        response = await client.embed(model=EMBED_MODEL_NAME, input=text)
-        return response.embeddings[0]
+        batch = await client.embed(model=EMBED_MODEL_NAME, input=texts)
+        return batch['embeddings']
     except Exception as e:
         print(f"Error in embedding with {EMBED_MODEL_NAME}: {e}")
         raise e
 
+async def main():
+    embeddings = await embed_text([
+        "Hello",
+        "Hahahaah"
+    ])
+
+    print(len(embeddings))
+
+if __name__ == "__main__":
+    asyncio.run(main())

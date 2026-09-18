@@ -1,1 +1,2 @@
 MIN_CHARS = 80
+NUM_CHUNK = 20

@@ -39,14 +39,22 @@ async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_senten
         return
     async with SessionLocal() as session:
         try:
-            for idx, chunk in enumerate(chunks):
-                vec = await embed_text(chunk)
-                session.add(Chunk(
-                    document_id=doc_id,
-                    content=chunk,
-                    embedding=vec,
-                    chunk_index=idx
-                ))
+            i = 0
+            n = len(chunks)
+            while i < n:
+                batch = chunks[i : i + config.NUM_CHUNK]
+                embeds = await embed_text(batch)
+
+                for idx, embed in enumerate(embeds):
+                    session.add(Chunk(
+                        document_id=doc_id,
+                        content=batch[idx],
+                        embedding=embed,
+                        chunk_index=i + idx
+                    ))
+
+                i += config.NUM_CHUNK
+
             await session.commit()
             await update_doc_status(doc_id, FileStatus.COMPLETED)
         except Exception as e:
