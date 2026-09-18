@@ -3,13 +3,13 @@ import ollama
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.services.rag.retriever import retrieve_vec
-from app.services.client import GENERATE_MODEL_NAME, ollama_client as client
+from app.services.client import (
+    GENERATE_MODEL_NAME,
+    OllamaModelNotFound, 
+    OllamaConnectionError,  
+    ollama_client as client
+)
 
-class OllamaConnectionError(Exception): 
-    pass
-
-class OllamaModelNotFound(Exception): 
-    pass
 
 @retry(
     stop=stop_after_attempt(3), 
@@ -22,6 +22,22 @@ async def generate(
     top_k: int, 
     db: AsyncSession
 ):
+    """Generate an answer to a user question based on relevant document chunks using Ollama.
+
+    Args:
+        question (str): User's natural language question.
+        document_id (uuid.UUID): ID of the target document to retrieve context from.
+        top_k (int): Number of most relevant document chunks to use.
+        db (AsyncSession): Database session for chunk retrieval.
+
+    Raises:
+        OllamaConnectionError: If connection to Ollama fails.
+        OllamaModelNotFound: If specified generation model is not found in Ollama.
+        RuntimeError: If answer generation fails.
+
+    Returns:
+        dict: Response containing 'answer' string, total 'token' count, and 'sources' list.
+    """
     chunks = await retrieve_vec(question, document_id, top_k, db)
     if not chunks:
         return {

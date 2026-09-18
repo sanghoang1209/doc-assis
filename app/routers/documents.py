@@ -1,17 +1,16 @@
-import io
 import uuid
 import logging
-import pdfplumber
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, BackgroundTasks
 from app import config
-from app.services.rag.embedder import embed_text
+from app.services.rag.generator import generate
+from app.services.rag.embedder import embed_batch
 from app.models import Document, Chunk, FileStatus
 from app.services.rag.chunker import chunk_by_sentences
 from app.services.extractor import extract_text_from_pdf
 from app.database import get_db, SessionLocal, update_doc_status
-from app.services.rag.generator import generate, OllamaConnectionError, OllamaModelNotFound
+from app.services.client import OllamaConnectionError, OllamaModelNotFound
 from app.schemas import DocumentUploadResponse, DocumentListItem, QueryRequest, QueryResponse
 
 CONTENT_TYPES = [
@@ -30,6 +29,14 @@ logger = logging.getLogger(__name__)
 doc_router = APIRouter(prefix="/documents")
 
 async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_sentences: int):
+    """Background task to chunk document content, compute embeddings in batches, and store chunks in the database.
+
+    Args:
+        doc_id (uuid.UUID): ID of the document being processed.
+        content (str): Full text content of the document.
+        max_chars (int): Maximum character limit per chunk.
+        overlap_sentences (int): Number of overlapping sentences between adjacent chunks.
+    """
     await update_doc_status(doc_id, FileStatus.PROCESSING)
     try:
         chunks = chunk_by_sentences(content, max_chars, overlap_sentences, config.MIN_CHARS)
@@ -39,21 +46,15 @@ async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_senten
         return
     async with SessionLocal() as session:
         try:
-            i = 0
-            n = len(chunks)
-            while i < n:
-                batch = chunks[i : i + config.NUM_CHUNK]
-                embeds = await embed_text(batch)
+            embeds = await embed_batch(chunks, config.BATCH_SIZE)
 
-                for idx, embed in enumerate(embeds):
-                    session.add(Chunk(
-                        document_id=doc_id,
-                        content=batch[idx],
-                        embedding=embed,
-                        chunk_index=i + idx
-                    ))
-
-                i += config.NUM_CHUNK
+            for idx, embed in enumerate(embeds):
+                session.add(Chunk(
+                    document_id=doc_id,
+                    content=chunks[idx],
+                    embedding=embed,
+                    chunk_index=idx
+                ))
 
             await session.commit()
             await update_doc_status(doc_id, FileStatus.COMPLETED)

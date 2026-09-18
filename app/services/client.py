@@ -14,3 +14,11 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
 ollama_client = AsyncClient(host=OLLAMA_URL)
 groq_api_key = os.getenv("GROQ_API_KEY") or "gsk_placeholder"
 groq_client = AsyncGroq(api_key=groq_api_key)
+
+class OllamaConnectionError(Exception):
+    """Raised when connection to the Ollama service fails."""
+    pass
+
+class OllamaModelNotFound(Exception):
+    """Raised when the specified model is not found in Ollama."""
+    pass
