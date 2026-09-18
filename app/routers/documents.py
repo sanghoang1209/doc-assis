@@ -5,6 +5,7 @@ import pdfplumber
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, BackgroundTasks
+from app import config
 from app.services.rag.embedder import embed_text
 from app.models import Document, Chunk, FileStatus
 from app.services.rag.chunker import chunk_by_sentences
@@ -31,7 +32,7 @@ doc_router = APIRouter(prefix="/documents")
 async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_sentences: int):
     await update_doc_status(doc_id, FileStatus.PROCESSING)
     try:
-        chunks = chunk_by_sentences(content, max_chars, overlap_sentences)
+        chunks = chunk_by_sentences(content, max_chars, overlap_sentences, config.MIN_CHARS)
     except Exception as e:
         await update_doc_status(doc_id, FileStatus.FAILED)
         logger.error(f"Failed to chunk document {doc_id}: {e}")
