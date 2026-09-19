@@ -536,8 +536,8 @@ async function submitQuestion() {
                     try {
                         const step = JSON.parse(dataString);
                         steps.push(step);
-                        // Force accordion to open while agent is actively thinking
-                        updateAssistantThoughtTrace(assistantMessageId, steps, true);
+                        // Update live status pill during streaming, keep accordion collapsed by default
+                        updateAssistantThoughtTrace(assistantMessageId, steps, false);
                     } catch (e) {
                         console.error("Failed to parse thought step JSON:", e);
                     }
@@ -630,87 +630,75 @@ function updateAssistantTextContent(id, text) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Update the thought trace accordion and build the dynamic activity checklist
+// Update the thought trace accordion and build the dynamic reasoning pill
 function updateAssistantThoughtTrace(id, steps, forceOpen = false) {
     const bubble = document.getElementById(`${id}-bubble`);
     if (!bubble) return;
 
-    // 1. Re-render or create the activity checklist dynamically!
-    let checklistEl = document.getElementById(`${id}-checklist`);
-    if (!checklistEl) {
-        checklistEl = document.createElement('div');
-        checklistEl.className = 'agent-activity-checklist';
-        checklistEl.id = `${id}-checklist`;
-        bubble.insertBefore(checklistEl, bubble.firstChild);
+    // 1. Create or update the live compact reasoning pill during thought streaming
+    let pillEl = document.getElementById(`${id}-reasoning-pill`);
+    if (!pillEl) {
+        pillEl = document.createElement('div');
+        pillEl.className = 'agent-reasoning-pill';
+        pillEl.id = `${id}-reasoning-pill`;
+        bubble.insertBefore(pillEl, bubble.firstChild);
     }
 
-    let checklistHtml = "";
-    
-    steps.forEach((step) => {
-        let taskDescription = `Step ${step.loop_index + 1}: Thought process completed`;
-        if (step.tool_calls && step.tool_calls.length > 0) {
-            const toolName = step.tool_calls[0].name;
-            if (toolName === "search_document") {
-                taskDescription = `Step ${step.loop_index + 1}: Searched database for relevant chunks`;
-            } else if (toolName === "list_documents") {
-                taskDescription = `Step ${step.loop_index + 1}: Scanned knowledge base document list`;
-            } else if (toolName === "get_full_document") {
-                taskDescription = `Step ${step.loop_index + 1}: Read full content of the document`;
-            }
-        }
-        
-        checklistHtml += `
-            <div class="agent-activity-item completed">
-                <span class="agent-activity-icon check">✓</span>
-                <span class="agent-activity-text">${taskDescription}</span>
-            </div>
-        `;
-    });
+    const latestStep = steps[steps.length - 1];
+    let actionSummary = `Reasoning step ${steps.length}...`;
+    if (latestStep && latestStep.tool_calls && latestStep.tool_calls.length > 0) {
+        actionSummary = `Tool call: ${latestStep.tool_calls[0].name}`;
+    } else if (latestStep && latestStep.thought) {
+        const firstLine = latestStep.thought.split('\n')[0].trim();
+        actionSummary = firstLine.length > 40 ? firstLine.substring(0, 40) + '...' : firstLine;
+    }
 
-    // Append the next active step prediction
-    const nextStepNum = steps.length + 1;
-    checklistHtml += `
-        <div class="agent-activity-item active" id="${id}-active-item">
-            <span class="agent-activity-icon"><div class="agent-spinner"></div></span>
-            <span class="agent-activity-text">Step ${nextStepNum}: Processing next loop step...</span>
-        </div>
+    pillEl.innerHTML = `
+        <div class="agent-spinner"></div>
+        <span class="pill-text">🧠 Thinking (Step ${steps.length}): ${escapeHtml(actionSummary)}</span>
     `;
-    
-    checklistEl.innerHTML = checklistHtml;
 
-    // Remove existing accordion if any
+    // 2. Remove existing accordion node if present to update content
     const oldAccordion = bubble.querySelector('.thought-accordion');
     let wasOpen = forceOpen;
     if (oldAccordion) {
-        // If not forced, retain the user's manual toggle state
         if (!forceOpen) {
             wasOpen = oldAccordion.classList.contains('open');
         }
         oldAccordion.remove();
     }
 
-    // Create new accordion node
+    // 3. Create accordion node
     const accordionHtml = renderThoughtSteps(steps);
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = accordionHtml.trim();
     const newAccordion = tempDiv.firstChild;
 
-    // Apply the open class if needed
     if (wasOpen) {
         newAccordion.classList.add('open');
     }
 
-    // Append accordion inside the bubble
-    bubble.appendChild(newAccordion);
-    
+    // Append accordion inside the bubble (after answer container if answer exists, or at bottom)
+    const textAnswer = document.getElementById(`${id}-answer`);
+    if (textAnswer && textAnswer.nextSibling) {
+        bubble.insertBefore(newAccordion, textAnswer.nextSibling);
+    } else {
+        bubble.appendChild(newAccordion);
+    }
+
     initIcons();
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Automatically collapse the thought accordion
+// Remove live status pill and collapse thought trace when answer streaming starts
 function collapseAssistantThoughtTrace(id) {
     const bubble = document.getElementById(`${id}-bubble`);
     if (!bubble) return;
+    
+    // Remove live pill badge
+    const pillEl = document.getElementById(`${id}-reasoning-pill`);
+    if (pillEl) pillEl.remove();
+
     const accordion = bubble.querySelector('.thought-accordion');
     if (accordion && accordion.classList.contains('open')) {
         accordion.classList.remove('open');
@@ -718,13 +706,16 @@ function collapseAssistantThoughtTrace(id) {
     }
 }
 
-// Remove streaming cursor and active progress item at the end of stream
+// Remove streaming cursor and active progress elements at the end of stream
 function removeStreamingCursor(id) {
     const bubble = document.getElementById(`${id}-bubble`);
     if (!bubble) return;
     
     const cursor = bubble.querySelector('.streaming-cursor');
     if (cursor) cursor.remove();
+
+    const pillEl = document.getElementById(`${id}-reasoning-pill`);
+    if (pillEl) pillEl.remove();
 
     const activeItem = document.getElementById(`${id}-active-item`);
     if (activeItem) activeItem.remove();
