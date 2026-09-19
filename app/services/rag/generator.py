@@ -38,8 +38,8 @@ async def generate(
     Returns:
         dict: Response containing 'answer' string, total 'token' count, and 'sources' list.
     """
-    chunks = await retrieve_vec(question, document_id, top_k, db)
-    if not chunks:
+    rows = await retrieve_vec(question, document_id, top_k, db)
+    if not rows:
         return {
             "answer": "I don't know based on the provided document.",
             "token": 0,
@@ -47,8 +47,10 @@ async def generate(
         }
 
     context = ""
-    for chunk in chunks:
-        context += f"{chunk.content}\n"
+    for row in rows:
+        chunk = row[0]
+        distance = row[1]
+        context += f"Content: {chunk.content}. Distance: {distance}\n"
 
     system_prompt = f"""You are a helpful assistant. Answer the question based ONLY on the context below.
 Do not use any knowledge outside of the provided context.
@@ -75,7 +77,7 @@ Context:
         return {
             "answer": response.message.content,
             "token": response.prompt_eval_count + response.eval_count,
-            "sources": [chunk.content for chunk in chunks]
+            "sources": [row[0].content for row in rows]
         }
     except ollama.RequestError:
         raise OllamaConnectionError()

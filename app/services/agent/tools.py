@@ -118,23 +118,27 @@ async def execute_tool(
                 return f"Error: Document with ID '{document_id_str}' not found."
  
         # Use retrieve_vec() available in the repository
-        chunks: list[Chunk] = await retrieve_vec(query, doc_uuid, top_k, db)
+        rows: list[tuple[Chunk, float]] = await retrieve_vec(query, doc_uuid, top_k, db)
  
-        if not chunks:
+        if not rows:
             return "No relevant text chunks found for this query."
 
         result_lines = []
 
         if doc_uuid:
-            result_lines.append(f"Found {len(chunks)} relevant chunks in '{doc.filename}':\n")
-            for i, chunk in enumerate(chunks, 1):
-                result_lines.append(f"[Chunk {i}]\n{chunk.content}\n")
+            result_lines.append(f"Found {len(rows)} relevant chunks in '{doc.filename}':\n")
+            for i, row in enumerate(rows, 1):
+                chunk = row[0]
+                distance = row[1]
+                result_lines.append(f"[Chunk {i} | Distance: {distance}]\n{chunk.content}\n")
         else:
-            result_lines.append(f"Found {len(chunks)} relevant chunks across all documents:\n")
-            for i, chunk in enumerate(chunks, 1):
+            result_lines.append(f"Found {len(rows)} relevant chunks across all documents:\n")
+            for i, row in enumerate(rows, 1):
+                chunk = row[0]
+                distance = row[1]
                 filename = await db.scalar(select(Document.filename).where(Document.id == chunk.document_id))
                 result_lines.append(
-                    f"[Chunk {i}] (From Document: '{filename}' | ID: {chunk.document_id})\n"
+                    f"[Chunk {i}] (From Document: '{filename}' | ID: {chunk.document_id} | Distance: {distance})\n"
                     f"{chunk.content}\n"
                 )
  

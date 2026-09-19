@@ -22,7 +22,7 @@ async def embed_text(text: str) -> list[float]:
     """
     try:
         batch = await client.embed(model=EMBED_MODEL_NAME, input=[text])
-        return (await batch['embeddings'])[0]
+        return batch['embeddings'][0]
 
     except Exception as e:
         print(f"Error in embedding with {EMBED_MODEL_NAME}: {e}")
