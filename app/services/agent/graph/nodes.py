@@ -1,6 +1,7 @@
 import json
-from collections.abc import AsyncGenerator
 import uuid
+from dataclasses import replace
+from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.memory import add_chat_message
 from app.services.client import GROQ_MODEL, groq_client
@@ -72,16 +73,21 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
                     accumulated_tc[index]["arguments"] += tc.function.arguments
 
 
-    new_state = AgentState(
-        question=state.question,
-        messages=state.messages,
-        thought_steps=state.thought_steps,
+    new_state = replace(
+        state,
         last_turn_tokens=turn_tokens,
-        loop_count=state.loop_count + 1,
-        final_response=state.final_response
+        loop_count=state.loop_count + 1
     )
 
     if not calling_tools:
+        if not accumulated_content.strip():
+            accumulated_content = (
+                "I apologize, but I did not receive a suitable response from the model. "
+                "Could you please try asking the question again?"
+            )
+
+            yield f"event: answer\ndata: {json.dumps({"text": accumulated_content})}\n\n"
+
         message = {
             "role": role,
             "content": accumulated_content
@@ -94,13 +100,11 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
             tool_calls=[]
         )
 
-        final_state = AgentState(
-            question=new_state.question,
+        final_state = replace(
+            new_state,
             messages=new_state.messages + [message],
             thought_steps=new_state.thought_steps + [final_step],
-            last_turn_tokens=new_state.last_turn_tokens,
-            loop_count=new_state.loop_count,
-            final_response=accumulated_content or "",
+            final_response=accumulated_content or ""
         )
 
         yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
@@ -219,11 +223,10 @@ async def execute_node(state: AgentState, db: AsyncSession, session_id: uuid.UUI
         content={"thought": new_thought_step.model_dump()}
     )
 
-    new_state = AgentState(
-        question=state.question,
+    new_state = replace(
+        state,
         messages=new_messages,
         thought_steps=state.thought_steps + [new_thought_step],
-        loop_count=state.loop_count,
         final_response=None
     )
 
