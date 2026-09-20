@@ -45,9 +45,6 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
     async for chunk in response:
         delta = chunk.choices[0].delta
 
-        if getattr(delta, "role", None) is not None:
-            role = delta.role
-
         if getattr(chunk, "usage", None) is not None:
             turn_tokens = chunk.usage.total_tokens
 
