@@ -1,6 +1,7 @@
 import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import PAGE_SIZE
 from app.models import Chunk, Document
 from app.services.rag.retriever import retrieve_vec
 
@@ -166,7 +167,6 @@ async def execute_tool(
         return "\n".join(lines)
  
     elif tool_name == "get_full_document":
-        PAGE_SIZE = 5000
         document_id_str = tool_input["document_id"]
         page = tool_input.get("page", 1)
         start = (page - 1) * PAGE_SIZE
