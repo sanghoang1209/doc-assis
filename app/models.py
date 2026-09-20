@@ -2,7 +2,7 @@ import uuid
 from enum import Enum
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Integer, DateTime, Text, UUID, func, ForeignKey
+from sqlalchemy import Integer, DateTime, Text, UUID, func, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -45,6 +45,7 @@ class Session(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(Text, nullable=False)
+    is_auto_titled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     message_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

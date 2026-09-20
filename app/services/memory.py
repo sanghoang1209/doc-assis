@@ -10,7 +10,10 @@ from app.schemas import MessageRole, MessageType
 async def create_session(db: AsyncSession, title: str) -> Session:
     """Create a new chat session."""
     try:
-        session = Session(title=title)
+        DEFAULT_TITLES = {"New Conversation", "New Chat", "Cuộc trò chuyện mới"}
+        is_auto = title not in DEFAULT_TITLES
+
+        session = Session(title=title, is_auto_titled=is_auto)
         db.add(session)
         await db.commit()
         await db.refresh(session)
@@ -32,6 +35,18 @@ async def get_session_messages(db: AsyncSession, session_id: uuid.UUID, limit: i
     ).all()
 
     return list(chat_histories)
+
+
+async def _maybe_auto_title(
+    session: Session,
+    user_text: str,
+    update_values: dict
+):
+    if not session.is_auto_titled and user_text:
+        clean_title = user_text.strip().replace("\n", " ")
+        auto_title = clean_title[:35] + ("..." if len(clean_title) > 35 else "")
+        update_values["title"] = auto_title
+        update_values["is_auto_titled"] = True
 
 
 async def add_chat_message(
@@ -60,20 +75,17 @@ async def add_chat_message(
                 "message_count": Session.message_count + 1,
                 "updated_at": datetime.now()
             }
-            # Auto-title session if it's the first question and has a default title
-            if role == MessageRole.USER and (session.message_count == 0 or session.title in ("New Conversation", "New Chat", "Cuộc trò chuyện mới")):
+
+            if role == MessageRole.USER:
                 user_text = content.get("text", "") if isinstance(content, dict) else str(content)
-                if user_text:
-                    clean_title = user_text.strip().replace("\n", " ")
-                    auto_title = clean_title[:35] + ("..." if len(clean_title) > 35 else "")
-                    update_values["title"] = auto_title
+                await _maybe_auto_title(session, user_text, update_values)
 
             await db.execute(
                 update(Session)
-                .where(Session.id == session_id)
+                .where(Session.id == session.id)
                 .values(**update_values)
             )
-
+        
         await db.commit()
         await db.refresh(chat_history)
 
@@ -89,6 +101,7 @@ async def update_session_title(db: AsyncSession, session_id: uuid.UUID, title: s
         session = await db.scalar(select(Session).where(Session.id == session_id))
         if session:
             session.title = title
+            session.is_auto_titled = True
             session.updated_at = datetime.now()
             await db.commit()
             await db.refresh(session)

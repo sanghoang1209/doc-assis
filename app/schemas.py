@@ -98,6 +98,7 @@ class SessionResponse(SessionCreate):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    is_auto_titled: bool
     message_count: int
     updated_at: datetime
     created_at: datetime
