@@ -11,9 +11,9 @@ TOOLS = [
         "function": {
             "name": "search_document",
             "description": (
-                "Search for relevant text chunks in a specific document "
-                "based on the user's query. "
+                "Search for relevant text chunks in a specific document based on the user's query. "
                 "Use this tool when the user asks about the content of an uploaded document."
+                "Use for targeted lookups; prefer get_full_document only when user explicitly asks to read the entire file."
             ),
             "parameters": {
                 "type": "object",
@@ -117,7 +117,6 @@ async def execute_tool(
             if not doc:
                 return f"Error: Document with ID '{document_id_str}' not found."
  
-        # Use retrieve_vec() available in the repository
         rows: list[tuple[Chunk, float]] = await retrieve_vec(query, doc_uuid, top_k, db)
  
         if not rows:
@@ -135,8 +134,8 @@ async def execute_tool(
             result_lines.append(f"Found {len(rows)} relevant chunks across all documents:\n")
             for i, row in enumerate(rows, 1):
                 chunk = row[0]
-                distance = row[1]
-                filename = await db.scalar(select(Document.filename).where(Document.id == chunk.document_id))
+                filename = row[1]
+                distance = row[2]
                 result_lines.append(
                     f"[Chunk {i}] (From Document: '{filename}' | ID: {chunk.document_id} | Distance: {distance})\n"
                     f"{chunk.content}\n"

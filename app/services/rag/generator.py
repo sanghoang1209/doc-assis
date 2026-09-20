@@ -48,8 +48,8 @@ async def generate(
 
     context = ""
     for row in rows:
-        chunk = row[0]
-        distance = row[1]
+        chunk = row[0] # chunk
+        distance = row[2] # distance
         context += f"Content: {chunk.content}. Distance: {distance}\n"
 
     system_prompt = f"""You are a helpful assistant. Answer the question based ONLY on the context below.

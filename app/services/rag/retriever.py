@@ -1,8 +1,8 @@
 import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Chunk
 from app.config import THRESHOLD
+from app.models import Chunk, Document
 from app.services.rag.embedder import embed_text
 
 async def retrieve_vec(question: str, document_id: uuid.UUID | None, top_k: int, db: AsyncSession):
@@ -19,7 +19,10 @@ async def retrieve_vec(question: str, document_id: uuid.UUID | None, top_k: int,
     """
     embed_vec = await embed_text(question)
     distance = Chunk.embedding.cosine_distance(embed_vec).label("distance")
-    selected_obj = select(Chunk, distance)
+    selected_obj = (
+        select(Chunk, Document.filename, distance)
+        .join(Document, Document.id == Chunk.document_id)
+    )
 
     if document_id:
         selected_obj = selected_obj.where(Chunk.document_id == document_id)    
@@ -33,11 +36,12 @@ async def retrieve_vec(question: str, document_id: uuid.UUID | None, top_k: int,
         )
     ).all()
 
-    results: list[tuple[Chunk, float]] = []
+    results: list[tuple[Chunk, str, float]] = []
     for row in rows:
         chunk = row.Chunk
+        filename = row.filename
         distance_val = row.distance
-        results.append((chunk, distance_val))
+        results.append((chunk, filename, distance_val))
 
     return results
 
@@ -50,6 +54,7 @@ async def main():
     for result in results:
         print(result[0])
         print(result[1])
+        print(result[2])
         print()
 
 
