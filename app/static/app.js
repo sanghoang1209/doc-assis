@@ -200,12 +200,33 @@ function renderSessionHistory(messages) {
         return;
     }
 
+    let pendingThoughtSteps = [];
+
     messages.forEach(msg => {
-        const isMsg = msg.type === 'message' || msg.type === 'MESSAGE';
-        if (isMsg) {
-            const contentText = typeof msg.content === 'object' ? (msg.content.text || '') : msg.content;
+        const msgType = String(msg.type || '').toLowerCase();
+
+        if (msgType === 'thinking') {
+            let thoughtObj = null;
+            if (typeof msg.content === 'object' && msg.content !== null) {
+                thoughtObj = msg.content.thought || msg.content;
+            } else if (typeof msg.content === 'string') {
+                try {
+                    const parsed = JSON.parse(msg.content);
+                    thoughtObj = parsed.thought || parsed;
+                } catch (e) {}
+            }
+            if (thoughtObj) {
+                pendingThoughtSteps.push(thoughtObj);
+            }
+        } else if (msgType === 'message') {
+            const contentText = typeof msg.content === 'object' && msg.content !== null ? (msg.content.text || '') : msg.content;
             if (contentText) {
-                appendMessage(contentText, msg.role);
+                if (msg.role === 'assistant') {
+                    appendMessage(contentText, msg.role, pendingThoughtSteps);
+                    pendingThoughtSteps = [];
+                } else {
+                    appendMessage(contentText, msg.role);
+                }
             }
         }
     });
