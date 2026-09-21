@@ -775,9 +775,9 @@ function renderThoughtSteps(steps) {
                 const argsStr = typeof tc.arguments === 'object' ? JSON.stringify(tc.arguments) : tc.arguments;
                 toolCallsHtml += `
                     <div class="step-tool">
-                        <div class="tool-name"><i data-lucide="wrench" style="width: 12px; height: 12px; display: inline; vertical-align: middle;"></i> Calling Skill: ${tc.name}</div>
-                        <div class="tool-args"><b>Args:</b> ${escapeHtml(argsStr)}</div>
-                        <div class="tool-result"><b>Result:</b>\n${escapeHtml(tc.result || '')}</div>
+                        <div class="tool-name"><i data-lucide="wrench" style="width: 11px; height: 11px; display: inline; vertical-align: middle;"></i> tool: ${tc.name}</div>
+                        <div class="tool-args"><b>args:</b> ${escapeHtml(argsStr)}</div>
+                        <div class="tool-result"><b>result:</b>\n${escapeHtml(tc.result || '')}</div>
                     </div>
                 `;
             });
@@ -887,8 +887,37 @@ async function checkHealthStatus() {
     }
 }
 
+// Theme Manager (Light Bone Mode default, Dark Charcoal Mode optional)
+function initTheme() {
+    const savedTheme = localStorage.getItem('doc-assistant-theme') || 'light';
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+    }
+    updateThemeIcon();
+
+    if (themeBtn) {
+        themeBtn.onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('doc-assistant-theme', isDark ? 'dark' : 'light');
+            updateThemeIcon();
+        };
+    }
+}
+
+function updateThemeIcon() {
+    const themeIcon = document.getElementById('theme-toggle-icon');
+    if (!themeIcon) return;
+    const isDark = document.body.classList.contains('dark-mode');
+    themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+    initIcons();
+}
+
 // Initial Setup on load
 window.onload = () => {
+    initTheme();
     fetchDocuments();
     fetchSessions();
     checkHealthStatus();
