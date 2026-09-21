@@ -2,16 +2,15 @@
 
 Upload your documents. Ask anything. See exactly how answers are derived.
 
-Most AI chat tools are black boxes — you get an answer but can't verify where it came from. Doc Assistant shows you every reasoning step, every source chunk, so you can trust what you're reading.
+Most AI chat tools are black boxes — you get an answer but can't verify where it came from. Doc Assistant shows you every reasoning step and source chunk in a clean, reading-focused interface.
 
 ---
 
 ## Demo
 
-![Doc Assistant Interface](attach/demo_1.png)
-
-*Transparent agent reasoning traces & skill invocation logs:*
-![Agent Reasoning Traces](attach/demo_2.png)
+| Light Mode | Light Mode (with Reasoning) | Dark Mode (with Reasoning) |
+| :---: | :---: | :---: |
+| <img src="attach/2/demo_1.png" width="32%" alt="Light Mode" /> | <img src="attach/2/demo_2.png" width="32%" alt="Light Mode with Reasoning" /> | <img src="attach/2/demo_3.png" width="32%" alt="Dark Mode with Reasoning" /> |
 
 ---
 
@@ -67,15 +66,18 @@ http://localhost:8000/ui
 #### Querying & Agent Reasoning
 - Scope Selection: Select "Search All Documents" or restrict queries to a specific document.
 - Thought Traces: Click "View Agent Reasoning" under responses to inspect step-by-step reasoning logs, skill execution, and token usage.
+- Dual Theme: Toggle between Light mode and Dark mode using the header theme button.
 
 ---
 
 ## Key Features
 
+- **Reading-Focused Design:** Built with clear typography and constrained reading columns for effortless document navigation.
 - **Instant Knowledge Retrieval:** Search and extract verified answers across internal documentation (SOPs, guides, reports, and contracts).
 - **Transparent Reasoning Traces:** Provide step-by-step auditability into how answers are derived, ensuring verified and trustworthy responses.
 - **Interactive Conversation Management:** Support multi-turn chat sessions with automatic topic titling and persistent conversation history.
-- **Real-Time Streaming:** Receive immediate answer streaming as insights are synthesized from documentation.
+- **Real-Time Streaming & Auto-scroll:** Receive immediate answer streaming with seamless auto-scrolling as insights are synthesized.
+- **System Health Monitoring:** Live `/health` endpoint checking DB connection and Ollama service status.
 
 ---
 
