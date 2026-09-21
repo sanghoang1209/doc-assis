@@ -7,13 +7,13 @@ from app.models import ChatHistory, Session
 from app.schemas import MessageRole, MessageType
 
 
+DEFAULT_TITLES = {"New Conversation", "New Chat", "Cuộc trò chuyện mới"}
+
+
 async def create_session(db: AsyncSession, title: str) -> Session:
     """Create a new chat session."""
     try:
-        DEFAULT_TITLES = {"New Conversation", "New Chat", "Cuộc trò chuyện mới"}
-        is_auto = title not in DEFAULT_TITLES
-
-        session = Session(title=title, is_auto_titled=is_auto)
+        session = Session(title=title, is_auto_titled=False)
         db.add(session)
         await db.commit()
         await db.refresh(session)
@@ -42,7 +42,7 @@ async def _maybe_auto_title(
     user_text: str,
     update_values: dict
 ):
-    if not session.is_auto_titled and user_text:
+    if session.title in DEFAULT_TITLES and user_text:
         clean_title = user_text.strip().replace("\n", " ")
         auto_title = clean_title[:35] + ("..." if len(clean_title) > 35 else "")
         update_values["title"] = auto_title

@@ -137,7 +137,7 @@ async def search_document(
         if not doc:
             return f"Error: Document with ID '{document_id_str}' not found."
 
-    rows: list[tuple[Chunk, float]] = await retrieve_vec(query, doc_uuid, top_k, db)
+    rows: list[tuple[Chunk, str, float]] = await retrieve_vec(query, doc_uuid, top_k, db)
 
     if not rows:
         return "No relevant text chunks found for this query."
@@ -146,16 +146,11 @@ async def search_document(
 
     if doc_uuid:
         result_lines.append(f"Found {len(rows)} relevant chunks in '{doc.filename}':\n")
-        for i, row in enumerate(rows, 1):
-            chunk = row[0]
-            distance = row[1]
+        for i, (chunk, _, distance) in enumerate(rows, 1):
             result_lines.append(f"[Chunk {i} | Distance: {distance}]\n{chunk.content}\n")
     else:
         result_lines.append(f"Found {len(rows)} relevant chunks across all documents:\n")
-        for i, row in enumerate(rows, 1):
-            chunk = row[0]
-            filename = row[1]
-            distance = row[2]
+        for i, (chunk, filename, distance) in enumerate(rows, 1):
             result_lines.append(
                 f"[Chunk {i}] (From Document: '{filename}' | ID: {chunk.document_id} | Distance: {distance})\n"
                 f"{chunk.content}\n"
