@@ -34,18 +34,11 @@ async def upload(doc_id: uuid.UUID, content: str):
     Args:
         doc_id (uuid.UUID): ID of the document being processed.
         content (str): Full text content of the document.
-        max_chars (int): Maximum character limit per chunk.
-        overlap_sentences (int): Number of overlapping sentences between adjacent chunks.
     """
-    await update_doc_status(doc_id, FileStatus.PROCESSING)
-    try:
-        chunks = chunk_by_sentences(content, config.MAX_CHARS, config.OVERLAP_SENTENCES, config.MIN_CHARS)
-    except Exception as e:
-        await update_doc_status(doc_id, FileStatus.FAILED)
-        logger.error(f"Failed to chunk document {doc_id}: {e}")
-        return
     async with SessionLocal() as session:
+        await update_doc_status(doc_id, FileStatus.PROCESSING, session)
         try:
+            chunks = chunk_by_sentences(content, config.MAX_CHARS, config.OVERLAP_SENTENCES, config.MIN_CHARS)
             embeds = await embed_batch(chunks, config.BATCH_SIZE)
 
             for idx, embed in enumerate(embeds):
@@ -57,11 +50,11 @@ async def upload(doc_id: uuid.UUID, content: str):
                 ))
 
             await session.commit()
-            await update_doc_status(doc_id, FileStatus.COMPLETED)
+            await update_doc_status(doc_id, FileStatus.COMPLETED, session)
         except Exception as e:
             await session.rollback()
-            await update_doc_status(doc_id, FileStatus.FAILED)
-            logger.error(f"Failed to save chunks for document {doc_id}: {e}")
+            await update_doc_status(doc_id, FileStatus.FAILED, session)
+            logger.error(f"Failed to process document {doc_id}: {e}")
 
 
 @doc_router.post("/", response_model=DocumentUploadResponse)

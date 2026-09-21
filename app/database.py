@@ -21,9 +21,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, Any]:
     async with SessionLocal() as session:
         yield session
 
-async def update_doc_status(doc_id: uuid.UUID, status: FileStatus):
-    async with SessionLocal() as session:
-        doc = await session.scalar(select(Document).where(Document.id == doc_id))
-        if doc:
-            doc.status = status
-            await session.commit()
+async def update_doc_status(doc_id: uuid.UUID, status: FileStatus, db: AsyncSession):
+    doc = await db.scalar(select(Document).where(Document.id == doc_id))
+    if doc:
+        doc.status = status
+        await db.commit()
