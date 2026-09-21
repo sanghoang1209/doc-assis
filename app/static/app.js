@@ -419,7 +419,7 @@ async function handleFileUpload(file) {
     formData.append('file', file);
 
     try {
-        const response = await fetch('/documents/?chunk_size=500&overlap=50', {
+        const response = await fetch('/documents/', {
             method: 'POST',
             body: formData
         });

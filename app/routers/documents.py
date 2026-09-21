@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 doc_router = APIRouter(prefix="/documents")
 
-async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_sentences: int):
+async def upload(doc_id: uuid.UUID, content: str):
     """Background task to chunk document content, compute embeddings in batches, and store chunks in the database.
 
     Args:
@@ -39,7 +39,7 @@ async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_senten
     """
     await update_doc_status(doc_id, FileStatus.PROCESSING)
     try:
-        chunks = chunk_by_sentences(content, max_chars, overlap_sentences, config.MIN_CHARS)
+        chunks = chunk_by_sentences(content, config.MAX_CHARS, config.OVERLAP_SENTENCES, config.MIN_CHARS)
     except Exception as e:
         await update_doc_status(doc_id, FileStatus.FAILED)
         logger.error(f"Failed to chunk document {doc_id}: {e}")
@@ -67,8 +67,6 @@ async def upload(doc_id: uuid.UUID, content: str, max_chars: int, overlap_senten
 @doc_router.post("/", response_model=DocumentUploadResponse)
 async def upload_document(
     background_tasks: BackgroundTasks,
-    max_chars: int = 500,
-    overlap_sentences: int = 1,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -108,8 +106,6 @@ async def upload_document(
         upload,
         doc_id=doc.id,
         content=text,
-        max_chars=max_chars,
-        overlap_sentences=overlap_sentences,
     )
     return DocumentUploadResponse.model_validate(doc)
 
