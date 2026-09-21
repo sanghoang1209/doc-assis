@@ -860,8 +860,36 @@ clearChatBtn.onclick = () => {
     }
 };
 
+// Fetch system health status from /health API endpoint
+async function checkHealthStatus() {
+    const statusTextEl = document.getElementById('status-badge-text');
+    const statusDotEl = document.getElementById('status-indicator-dot');
+    if (!statusTextEl || !statusDotEl) return;
+
+    try {
+        const response = await fetch('/health');
+        const data = await response.json();
+
+        if (data.status === 'healthy') {
+            statusDotEl.classList.remove('offline');
+            statusTextEl.textContent = 'System Healthy';
+        } else {
+            statusDotEl.classList.add('offline');
+            const offlineComponents = Object.entries(data.components || {})
+                .filter(([_, status]) => String(status).includes('offline') || String(status).includes('unhealthy'))
+                .map(([name]) => name)
+                .join(', ');
+            statusTextEl.textContent = offlineComponents ? `Degraded (${offlineComponents})` : 'System Unhealthy';
+        }
+    } catch (error) {
+        statusDotEl.classList.add('offline');
+        statusTextEl.textContent = 'System Offline';
+    }
+}
+
 // Initial Setup on load
 window.onload = () => {
     fetchDocuments();
     fetchSessions();
+    checkHealthStatus();
 };
