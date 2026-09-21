@@ -8,9 +8,14 @@ Most AI chat tools are black boxes — you get an answer but can't verify where 
 
 ## Demo
 
-| Light Mode | Light Mode (with Reasoning) | Dark Mode (with Reasoning) |
-| :---: | :---: | :---: |
-| <img src="attach/2/demo_1.png" width="32%" alt="Light Mode" /> | <img src="attach/2/demo_2.png" width="32%" alt="Light Mode with Reasoning" /> | <img src="attach/2/demo_3.png" width="32%" alt="Dark Mode with Reasoning" /> |
+### ☀️ Transparent Agent Reasoning & Thought Traces (Default Light Mode)
+![Light Mode with Reasoning](attach/2/demo_2.png)
+
+<br>
+
+| ☀️ Minimalist Chat View | 🌙 Dark Charcoal Mode |
+| :---: | :---: |
+| <img src="attach/2/demo_1.png" width="100%" alt="Light Mode Chat" /> | <img src="attach/2/demo_3.png" width="100%" alt="Dark Mode with Reasoning" /> |
 
 ---
 
