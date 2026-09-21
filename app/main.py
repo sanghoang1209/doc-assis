@@ -1,9 +1,14 @@
+import httpx
 import asyncio
 import logging
-from fastapi import FastAPI, Request
+from sqlalchemy import text
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from app import config
+from app.database import get_db
 from app.routers.chat import agent_router
 from app.routers.documents import doc_router
 from app.routers.sessions import session_router
@@ -45,3 +50,36 @@ async def global_exception_hanlder(request: Request, exc: Exception):
         content={"detail": "Internal server error"}
     )
 
+@app.get("/health")
+async def health_check(
+    db: AsyncSession = Depends(get_db)
+):
+    health_status = {
+        "status": "healthy",
+        "components": {}
+    }
+
+    try:
+        await db.execute(text("SELECT 1"))
+        health_status["components"]["database"] = "healthy"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["components"]["database"] = f"offline: {e}"
+
+    try:
+        async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
+            response = await client.get(OLLAMA_URL)
+
+        if response.status_code == 200:
+            health_status["components"]["ollama"] = "healthy"
+        else:
+            health_status["status"] = "unhealthy"
+            health_status["components"]["ollama"] = f"unhealthy status code: {response.status_code}"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["components"]["ollama"] = f"offline: {e}"
+
+    if health_status["status"] == "unhealthy":
+        return JSONResponse(status_code=503, content=health_status)
+
+    return health_status
