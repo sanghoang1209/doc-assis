@@ -18,6 +18,13 @@ const toastEl = document.getElementById('toast-notification');
 const sessionListEl = document.getElementById('session-list');
 const newChatBtn = document.getElementById('new-chat-btn');
 
+// Scroll helper targeting the parent scrollable container (.messages-wrapper)
+function scrollToBottom() {
+    if (!chatBox) return;
+    const container = chatBox.closest('.messages-wrapper') || chatBox.parentElement || chatBox;
+    container.scrollTop = container.scrollHeight;
+}
+
 // Initialize Icons
 function initIcons() {
     if (window.lucide) {
@@ -230,6 +237,8 @@ function renderSessionHistory(messages) {
             }
         }
     });
+
+    scrollToBottom();
 }
 
 function renderWelcomeMessage() {
@@ -611,7 +620,7 @@ function appendEmptyAssistantBubble() {
         <div class="message-meta">Agent • ${timestamp}</div>
     `;
     chatBox.appendChild(messageContainer);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    scrollToBottom();
     return id;
 }
 
@@ -648,7 +657,7 @@ function updateAssistantTextContent(id, text) {
     }
 
     textContainer.innerHTML = parsedText + '<span class="streaming-cursor">█</span>';
-    chatBox.scrollTop = chatBox.scrollHeight;
+    scrollToBottom();
 }
 
 // Update the thought trace accordion and build the dynamic reasoning pill
@@ -708,7 +717,7 @@ function updateAssistantThoughtTrace(id, steps, forceOpen = false) {
     }
 
     initIcons();
-    chatBox.scrollTop = chatBox.scrollHeight;
+    scrollToBottom();
 }
 
 // Remove live status pill and collapse thought trace when answer streaming starts
@@ -779,7 +788,7 @@ function appendMessage(text, role, thoughtSteps = []) {
     `;
 
     chatBox.appendChild(messageContainer);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    scrollToBottom();
     initIcons();
 }
 
@@ -861,7 +870,7 @@ function appendLoadingIndicator() {
         </div>
     `;
     chatBox.appendChild(messageContainer);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    scrollToBottom();
     return id;
 }
 
