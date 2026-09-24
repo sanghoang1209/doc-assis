@@ -38,10 +38,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from app.mcp import mcp_server
+
 app.include_router(doc_router)
 app.include_router(agent_router)
 app.include_router(session_router)
 app.mount("/ui", StaticFiles(directory="app/static", html=True), name="static")
+app.mount("/mcp", mcp_server.sse_app(), name="mcp")
 
 @app.exception_handler(Exception)
 async def global_exception_hanlder(request: Request, exc: Exception):

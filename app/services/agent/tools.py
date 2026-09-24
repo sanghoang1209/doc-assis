@@ -260,23 +260,25 @@ TOOL_REGISTRY = {
 
 }
 
+from app.mcp.server import mcp_server
+
 async def execute_tool(
     tool_name: str,
     tool_input: dict,
-    db: AsyncSession,
+    db: AsyncSession = None,
 ) -> str:
     """
-    Execute a tool and return the result as a string.
-    LLM only receives strings — format clearly.
+    Execute a tool via MCP Server and return the result as a string.
     """
-    if not db:
-        return "Error: No database connection available to execute query."
-
-    func = TOOL_REGISTRY.get(tool_name, None)
-    if func is None:
-        return f"Error: Tool '{tool_name}' is not recognized."
-    
-    return (await func(tool_input, db))
+    try:
+        call_res = await mcp_server.call_tool(tool_name, tool_input)
+        if call_res.content and hasattr(call_res.content[0], "text"):
+            return call_res.content[0].text
+        elif call_res.structured_content and "result" in call_res.structured_content:
+            return str(call_res.structured_content["result"])
+        return str(call_res)
+    except Exception as e:
+        return f"Error executing tool '{tool_name}': {e}"
 
 async def main():
     tool_name = "summarize_document"
