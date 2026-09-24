@@ -1,51 +1,27 @@
 import uuid
 import json
-import logging
-from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from langgraph.graph import StateGraph, START, END
-
 from app.models import ChatHistory
 from app.services.memory import add_chat_message, get_session_messages
-from app.services.agent.graph.state import AgentGraphState
 from app.services.agent.graph.nodes import execute_node, think_node
-from app.schemas import MessageRole, MessageType, NodeTransition, Node
-
-logger = logging.getLogger(__name__)
-
-def route_next(state: AgentGraphState) -> str:
-    """Determine the next state transition in LangGraph."""
-    if state.get("next_node") == "execute":
-        return "execute"
-    return END
-
-def create_agent_state_graph():
-    """Build and compile the LangGraph StateGraph workflow."""
-    workflow = StateGraph(AgentGraphState)
-    workflow.add_node("think", think_node)
-    workflow.add_node("execute", execute_node)
-    
-    workflow.add_edge(START, "think")
-    workflow.add_conditional_edges(
-        "think",
-        route_next,
-        {"execute": "execute", END: END}
-    )
-    workflow.add_edge("execute", "think")
-    
-    return workflow.compile()
+from app.schemas import (
+    AgentState,
+    MessageRole,
+    MessageType, 
+    Node, 
+    NodeTransition
+)
 
 class AgentGraph:
-    """LangGraph-powered Agent runner controlling state transitions between THINK and EXECUTE nodes."""
+    """Graph-based Agent runner controlling state transitions between THINK and EXECUTE nodes."""
 
     def __init__(self, max_loops: int = 8):
-        """Initialize the LangGraph Agent executor.
+        """Initialize the AgentGraph executor.
 
         Args:
             max_loops (int, optional): Maximum loop iterations permitted. Defaults to 8.
         """
         self.max_loops = max_loops
-        self.graph = create_agent_state_graph()
 
     async def run(
         self,
@@ -54,7 +30,7 @@ class AgentGraph:
         document_id: uuid.UUID | None,
         db: AsyncSession,
         limit: int = 20
-    ) -> AsyncGenerator[str, None]:
+    ):
         """Execute the agent graph state machine asynchronously.
 
         Args:
@@ -65,7 +41,7 @@ class AgentGraph:
             limit (int, optional): Maximum historical messages to retrieve. Defaults to 20.
 
         Yields:
-            str: SSE formatted event strings.
+            str | NodeTransition: SSE formatted event strings or node transitions.
         """
         historical_records = await get_session_messages(
             db=db,
@@ -87,23 +63,15 @@ class AgentGraph:
             document_id=document_id
         )
 
-        state: AgentGraphState = {
-            "question": question,
-            "session_id": session_id,
-            "document_id": document_id,
-            "messages": initial_messages,
-            "loop_count": 0,
-            "last_turn_tokens": 0,
-            "thought_steps": [],
-            "final_response": None,
-            "next_node": "think",
-            "db": db,
-        }
+        state = AgentState(
+            question=question,
+            messages=initial_messages
+        )
 
         current_node = Node.THINK
 
         while current_node != Node.END:
-            if state.get("loop_count", 0) >= self.max_loops:
+            if state.loop_count >= self.max_loops:
                 yield f"event: error\ndata: {json.dumps({'detail': f'Reached maximum tool loops ({self.max_loops}) without answer.'})}\n\n"
                 yield f"event: done\ndata: {json.dumps({'status': 'max_loops_exceeded'})}\n\n"
                 return
@@ -113,26 +81,23 @@ class AgentGraph:
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
-                        state = item.state if isinstance(item.state, dict) else state
-                        current_node = item.next_node
+                        state, current_node = item.state, item.next_node
 
             elif current_node == Node.EXECUTE:
                 async for item in execute_node(state, db, session_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
-                        state = item.state if isinstance(item.state, dict) else state
-                        current_node = item.next_node
+                        state, current_node = item.state, item.next_node
 
-        final_response = state.get("final_response")
-        if final_response:
+        if state.final_response:
             await add_chat_message(
                 db=db,
                 session_id=session_id,
                 role=MessageRole.ASSISTANT,
                 type=MessageType.MESSAGE,
-                content={"text": final_response},
-                token_count=state.get("last_turn_tokens", 0)
+                content={"text": state.final_response},
+                token_count=state.last_turn_tokens
             )
 
         return
@@ -179,6 +144,24 @@ class AgentGraph:
                     if text_content:
                         messages.append({"role": chat.role, "content": text_content})
 
+    
         messages.append({"role": "user", "content": question})
 
         return messages
+
+async def main():
+    from app.database import SessionLocal
+    
+    graph = AgentGraph()
+    async with SessionLocal() as session:
+        async for chunk in graph.run(
+            question="What documents are available?",
+            chat_history=None,
+            document_id=None,
+            db=session
+        ):
+            print(chunk, end="", flush=True)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
