@@ -1,13 +1,12 @@
 import json
 import uuid
-from dataclasses import replace
-from collections.abc import AsyncGenerator
+from dataclasses import replace, is_dataclass
+from typing import Any, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.memory import add_chat_message
 from app.services.client import GROQ_MODEL, groq_client
 from app.services.agent.tools import TOOLS, execute_tool
 from app.schemas import (
-    AgentState,
     MessageRole,
     MessageType, 
     Node, 
@@ -16,17 +15,39 @@ from app.schemas import (
     ToolCallDetail
 )
 
-async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None, None]:
+def _get_val(obj: Any, key: str, default: Any = None) -> Any:
+    """Retrieve value from dict or dataclass object safely."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+def _update_state(state: Any, **updates) -> Any:
+    """Immutably update state dict or dataclass object."""
+    if isinstance(state, dict):
+        new_state = dict(state)
+        new_state.update(updates)
+        return new_state
+    if is_dataclass(state):
+        return replace(state, **updates)
+    # Fallback if state is an object with __dict__
+    new_state = dict(getattr(state, "__dict__", {}))
+    new_state.update(updates)
+    return new_state
+
+async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None]:
     """Execute LLM reasoning turn to determine whether to call tools or finish answering.
 
     Args:
-        state (AgentState): Current graph state containing conversation messages and step history.
+        state (Any): Current graph state containing conversation messages and step history.
         db (AsyncSession): Database session.
         session_id (uuid.UUID): Target chat session UUID.
 
     Yields:
         AsyncGenerator[str | NodeTransition, None]: SSE stream tokens or NodeTransition signal.
     """
+    messages = _get_val(state, "messages", [])
+    loop_count = _get_val(state, "loop_count", 0)
+
     accumulated_tc: dict = {}
     accumulated_content: str = ""
     role: str = "assistant"
@@ -35,7 +56,7 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
     try:
         response = await groq_client.chat.completions.create(
             model=GROQ_MODEL,
-            messages=state.messages,
+            messages=messages,
             tools=TOOLS,
             stream=True
         )
@@ -52,7 +73,7 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
             piece_content = delta.content
             accumulated_content += piece_content
 
-            yield f"event: answer\ndata: {json.dumps({"text": piece_content})}\n\n"
+            yield f"event: answer\ndata: {json.dumps({'text': piece_content})}\n\n"
 
         if getattr(delta, "tool_calls", None) is not None:
             calling_tools = True
@@ -69,11 +90,10 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
                 if tc.function.arguments:
                     accumulated_tc[index]["arguments"] += tc.function.arguments
 
-
-    new_state = replace(
+    new_state = _update_state(
         state,
         last_turn_tokens=turn_tokens,
-        loop_count=state.loop_count + 1
+        loop_count=loop_count + 1
     )
 
     if not calling_tools:
@@ -83,7 +103,7 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
                 "Could you please try asking the question again?"
             )
 
-            yield f"event: answer\ndata: {json.dumps({"text": accumulated_content})}\n\n"
+            yield f"event: answer\ndata: {json.dumps({'text': accumulated_content})}\n\n"
 
         message = {
             "role": role,
@@ -91,17 +111,19 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
         }
 
         final_step = ThoughtStep(
-            loop_index=new_state.loop_count - 1,
+            loop_index=_get_val(new_state, "loop_count", 1) - 1,
             token=turn_tokens,
             thought=accumulated_content,
             tool_calls=[]
         )
 
-        final_state = replace(
+        existing_steps = _get_val(new_state, "thought_steps", []) or []
+        final_state = _update_state(
             new_state,
-            messages=new_state.messages + [message],
-            thought_steps=new_state.thought_steps + [final_step],
-            final_response=accumulated_content or ""
+            messages=messages + [message],
+            thought_steps=existing_steps + [final_step],
+            final_response=accumulated_content or "",
+            next_node=Node.END
         )
 
         yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
@@ -137,28 +159,32 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
         "tool_calls": tool_calls_payload
     }
 
-    new_state.messages = new_state.messages + [message]
+    next_state = _update_state(
+        new_state,
+        messages=messages + [message],
+        next_node=Node.EXECUTE
+    )
 
-    yield NodeTransition(state=new_state, next_node=Node.EXECUTE)
+    yield NodeTransition(state=next_state, next_node=Node.EXECUTE)
     return
 
-
-async def execute_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None, None]:
+async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None]:
     """Execute requested tool calls from the last thought turn and record thought steps.
 
     Args:
-        state (AgentState): Current graph state containing the tool call message.
+        state (Any): Current graph state containing the tool call message.
         db (AsyncSession): Database session required for tool executions and memory logging.
         session_id (uuid.UUID): Target chat session UUID.
 
     Yields:
         AsyncGenerator[str | NodeTransition, None]: SSE event stream tokens or NodeTransition signal.
     """
-    tc_messages = state.messages[-1]
+    messages = _get_val(state, "messages", [])
+    tc_messages = messages[-1] if messages else {}
     tool_calls_detail: list[ToolCallDetail] = []
-    new_messages: list[dict] = list(state.messages)
+    new_messages: list[dict] = list(messages)
 
-    tool_calls = tc_messages.get("tool_calls", []) if isinstance(tc_messages, dict) else (tc_messages.tool_calls or [])
+    tool_calls = tc_messages.get("tool_calls", []) if isinstance(tc_messages, dict) else (getattr(tc_messages, "tool_calls", []) or [])
 
     await add_chat_message(
         db=db,
@@ -203,11 +229,15 @@ async def execute_node(state: AgentState, db: AsyncSession, session_id: uuid.UUI
             "content": str(result)
         })
 
-    thought_content = tc_messages.get("content") if isinstance(tc_messages, dict) else tc_messages.content
+    thought_content = tc_messages.get("content") if isinstance(tc_messages, dict) else getattr(tc_messages, "content", "")
+
+    loop_count = _get_val(state, "loop_count", 1)
+    last_turn_tokens = _get_val(state, "last_turn_tokens", 0)
+    existing_steps = _get_val(state, "thought_steps", []) or []
 
     new_thought_step = ThoughtStep(
-        loop_index=state.loop_count - 1,
-        token=state.last_turn_tokens,
+        loop_index=loop_count - 1,
+        token=last_turn_tokens,
         thought=thought_content,
         tool_calls=tool_calls_detail
     )
@@ -220,11 +250,12 @@ async def execute_node(state: AgentState, db: AsyncSession, session_id: uuid.UUI
         content={"thought": new_thought_step.model_dump()}
     )
 
-    new_state = replace(
+    new_state = _update_state(
         state,
         messages=new_messages,
-        thought_steps=state.thought_steps + [new_thought_step],
-        final_response=None
+        thought_steps=existing_steps + [new_thought_step],
+        final_response=None,
+        next_node=Node.THINK
     )
 
     yield f"event: thought\ndata: {new_thought_step.model_dump_json()}\n\n"
