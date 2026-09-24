@@ -6,6 +6,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/docqa
       - OLLAMA_BASE_URL=http://ollama:11434
+      - GROQ_MODEL=openai/gpt-oss-120b
     depends_on:
       - db
       - ollama
