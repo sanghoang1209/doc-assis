@@ -8,7 +8,7 @@ from app.services.rag.generator import generate
 from app.services.rag.embedder import embed_batch
 from app.models import Document, Chunk, FileStatus
 from app.services.rag.chunker import chunk_by_sentences
-from app.services.extractor import extract_text_from_pdf
+from app.services.extractor import extract_document_content, extract_text_from_pdf
 from app.database import get_db, SessionLocal, update_doc_status
 from app.services.client import OllamaConnectionError, OllamaModelNotFound
 from app.schemas import DocumentUploadResponse, DocumentListItem, QueryRequest, QueryResponse
@@ -21,7 +21,10 @@ CONTENT_TYPES = [
     "text/plain",
     "text/markdown",
     "application/json",
-    "application/pdf"
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/docx",
+    "application/msword",
 ]
 
 logger = logging.getLogger(__name__)
@@ -64,16 +67,30 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a text document and process it for Q&A."""
-    if file.content_type not in CONTENT_TYPES:
+    filename_lower = (file.filename or "").lower()
+    is_supported_type = (
+        file.content_type in CONTENT_TYPES or
+        filename_lower.endswith((".pdf", ".docx", ".doc", ".txt", ".md", ".json", ".csv", ".html"))
+    )
+    if not is_supported_type:
         raise HTTPException(
             status_code=400,
             detail=f"Format as {file.content_type} is not supported"
         )
     
     content = await file.read()
-    if file.content_type == "application/pdf":
+    is_docling_file = (
+        file.content_type in [
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/docx",
+            "application/msword",
+        ] or filename_lower.endswith((".pdf", ".docx", ".doc"))
+    )
+
+    if is_docling_file:
         try:
-            text = extract_text_from_pdf(content)
+            text = extract_document_content(content, file.filename or "document.pdf")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
     else:
